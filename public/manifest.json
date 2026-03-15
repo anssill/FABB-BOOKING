@@ -1,0 +1,27 @@
+{
+  "name": "fabb.booking — Ansil Dress House",
+  "short_name": "fabb.booking",
+  "description": "Cloth rental management for Ansil Dress House, Palakkad",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#1C2237",
+  "theme_color": "#FF6B35",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en-IN",
+  "dir": "ltr"
+}
