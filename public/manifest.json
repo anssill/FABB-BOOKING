@@ -1,7 +1,7 @@
 {
-  "name": "fabb.booking — Ansil Dress House",
-  "short_name": "fabb.booking",
-  "description": "Cloth rental management for Ansil Dress House, Palakkad",
+  "name": "Fabb.booking — Rental Management",
+  "short_name": "Fabb.booking",
+  "description": "Complete rental business management platform — Fabb.booking",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#1C2237",
