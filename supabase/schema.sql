@@ -283,5 +283,110 @@ SELECT
 FROM orders o
 LEFT JOIN customers c ON o.customer_id = c.id;
 
+-- ─── PRICING RULES ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pricing_rules (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name          TEXT NOT NULL,
+  type          TEXT NOT NULL DEFAULT 'duration_discount'
+                CHECK (type IN ('duration_discount','minimum_days','seasonal','flat_rate')),
+  item_id       UUID REFERENCES items(id) ON DELETE CASCADE,
+  category      TEXT,
+  min_days      INTEGER,
+  max_days      INTEGER,
+  discount_pct  NUMERIC(5,2),
+  flat_daily_rate NUMERIC(10,2),
+  start_date    DATE,
+  end_date      DATE,
+  active        BOOLEAN DEFAULT true,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE pricing_rules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "auth_read_pricing"  ON pricing_rules FOR SELECT TO authenticated USING (true);
+CREATE POLICY "owner_write_pricing" ON pricing_rules FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('owner','manager'))
+);
+
+-- ─── CUSTOM FIELDS ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS custom_fields (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entity      TEXT NOT NULL CHECK (entity IN ('order','item','customer')),
+  label       TEXT NOT NULL,
+  field_type  TEXT NOT NULL DEFAULT 'text'
+              CHECK (field_type IN ('text','number','select','checkbox','date','textarea')),
+  options     TEXT[],
+  required    BOOLEAN DEFAULT false,
+  sort_order  INTEGER DEFAULT 0,
+  active      BOOLEAN DEFAULT true
+);
+
+ALTER TABLE custom_fields ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "auth_read_cf"   ON custom_fields FOR SELECT TO authenticated USING (true);
+CREATE POLICY "owner_write_cf" ON custom_fields FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('owner','manager'))
+);
+
+-- ─── ACTIVITY LOG ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS activity_log (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id     UUID REFERENCES profiles(id),
+  action      TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id   UUID,
+  description TEXT,
+  metadata    JSONB,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "auth_read_log"   ON activity_log FOR SELECT TO authenticated USING (true);
+CREATE POLICY "auth_insert_log" ON activity_log FOR INSERT TO authenticated WITH CHECK (true);
+
+-- ─── EMAIL LOG ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS email_log (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  customer_id UUID REFERENCES customers(id),
+  order_id    UUID REFERENCES orders(id),
+  to_email    TEXT NOT NULL,
+  subject     TEXT,
+  template    TEXT,
+  status      TEXT DEFAULT 'sent',
+  sent_at     TIMESTAMPTZ DEFAULT NOW(),
+  sent_by     UUID REFERENCES profiles(id)
+);
+
+ALTER TABLE email_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "auth_read_email_log"   ON email_log FOR SELECT TO authenticated USING (true);
+CREATE POLICY "auth_insert_email_log" ON email_log FOR INSERT TO authenticated WITH CHECK (true);
+
+-- ─── NEW COLUMNS ON EXISTING TABLES ──────────────────────────
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_field_values JSONB DEFAULT '{}';
+
+ALTER TABLE items ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS qr_code_data TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS min_rental_days INTEGER DEFAULT 1;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS custom_field_values JSONB DEFAULT '{}';
+
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS custom_field_values JSONB DEFAULT '{}';
+
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS ga4_id TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS zapier_webhook TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS mailchimp_api_key TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS resend_api_key TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS notification_email TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS notify_booking_confirmed BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS notify_reminder_24h BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS notify_return_due BOOLEAN DEFAULT true;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS notify_overdue BOOLEAN DEFAULT true;
+
+-- ─── INDEXES FOR NEW TABLES ───────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_pricing_rules_active ON pricing_rules(active);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user    ON activity_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_time    ON activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_log_order      ON email_log(order_id);
+CREATE INDEX IF NOT EXISTS idx_email_log_customer   ON email_log(customer_id);
+
 -- Done! Schema created successfully.
-SELECT 'fabb.booking schema installed ✓' AS status;
+SELECT 'fabb.booking schema v2 installed ✓' AS status;
